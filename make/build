@@ -1,0 +1,90 @@
+# ---- Build Output ----
+OUTPUT_DIR      ?= bin
+OUTPUT_NAME     ?= $(APP)-$(GOOS)-$(GOARCH)
+OUTPUT          ?= $(OUTPUT_DIR)/$(OUTPUT_NAME)
+
+# ---- Build Variables ----
+MAIN_PACKAGE    ?= ./cmd/$(APP)
+
+# ---- Versioning ----
+VERSION         ?= dev
+COMMIT          ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+BUILD_TIME      ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# ---- Linker Flags ----
+LDFLAGS_BASE    := -X 'main.Version=$(VERSION)' \
+                   -X 'main.Commit=$(COMMIT)' \
+                   -X 'main.BuildTime=$(BUILD_TIME)'
+
+LDFLAGS         := $(LDFLAGS_BASE)
+
+# ---- Detect OS ----
+ifeq ($(OS),Windows_NT)
+    HOST_OS := windows
+else
+    UNAME_S := $(shell uname -s)
+    ifeq ($(UNAME_S),Darwin)
+        HOST_OS := darwin
+    else ifeq ($(UNAME_S),Linux)
+        HOST_OS := linux
+    else
+        HOST_OS := unknown
+    endif
+endif
+
+# -------- Detect ARCH --------
+# Windows often provides PROCESSOR_ARCHITECTURE; otherwise use uname -m
+ifeq ($(HOST_OS),windows)
+    RAW_ARCH := $(PROCESSOR_ARCHITECTURE)
+else
+    RAW_ARCH := $(shell uname -m)
+endif
+
+ifeq ($(RAW_ARCH),x86_64)
+    HOST_ARCH := amd64
+else ifeq ($(RAW_ARCH),AMD64)
+    HOST_ARCH := amd64
+else ifeq ($(RAW_ARCH),aarch64)
+    HOST_ARCH := arm64
+else ifeq ($(RAW_ARCH),arm64)
+    HOST_ARCH := arm64
+else
+    HOST_ARCH := unknown
+endif
+
+.PHONY: build build-linux-amd64 build-linux-arm64 build-windows-amd64 build-windows-arm64 build-darwin-amd64 build-darwin-arm64
+
+build:
+	$(MAKE) build-$(HOST_OS)-$(HOST_ARCH)
+
+build-linux-amd64:
+	$(MAKE) GOOS=linux GOARCH=amd64 do-build
+
+build-{linux-arm64:
+	$(MAKE) GOOS=linux GOARCH=arm64 do-build
+
+build-darwin-arm64:
+	$(MAKE) GOOS=darwin GOARCH=arm64 do-build
+
+build-darwin-amd64:
+	$(MAKE) GOOS=darwin GOARCH=amd64 do-build
+
+build-windows-amd64:
+	$(MAKE) GOOS=windows GOARCH=amd64 OUTPUT_NAME=$(OUTPUT_NAME).exe do-build
+
+build-windows-arm64:
+	$(MAKE) GOOS=windows GOARCH=arm64 OUTPUT_NAME=$(OUTPUT_NAME).exe do-build
+
+do-build:
+	@echo "Building app: $(APP)"
+	@echo "GOOS: $(GOOS)"
+	@echo "GOARCH: $(GOARCH)"
+	@echo "OUTPUT_NAME: $(OUTPUT_NAME)"
+	@echo "OUTPUT: $(OUTPUT)"
+	GOOS=$(GOOS) \
+	GOARCH=$(GOARCH) \
+	$(GO) build \
+		-o $(OUTPUT) \
+		-ldflags "$(LDFLAGS)" \
+		$(MAIN_PACKAGE)
+		
